@@ -15,9 +15,13 @@ def corrfunc(x, y, **kws):
     return ax
 
 
-def plot_adjusted_price(ticker_price):
-    ticker_price = ticker_price / ticker_price.iloc[0, :]
-    ax = ticker_price.plot(figsize=(16, 9))
+def plot_adjusted_price(ticker_price, figsize=(16, 9)):
+    first_valid_index = ticker_price.apply(lambda x: max(x.notna().argmax(), (x != 0).argmax()))
+    ticker_price = ticker_price / ticker_price.apply(lambda x: x[first_valid_index[x.name]])
+    fig, ax = plt.subplots(figsize=figsize)
+    ticker_price.plot(ax=ax)
+    for name, price in ticker_price.iteritems():
+        ax.annotate(xy=(price.index[-1], price.iloc[-1]), xytext=(5, 0), textcoords='offset points', text=name, va='center')
     ax.set_ylabel('Adjusted closing price ($)')
     return ax
 
@@ -88,10 +92,11 @@ def getData(symbols, start_date, end_date):
     res = pd.DataFrame(columns=symbols,
                        index=pd.date_range(pd.Timestamp(start_date), pd.Timestamp(end_date)))
     for s in symbols:
-        print(s)
-        try:
-            res[s] = getMoexData(s, start_date, end_date)
-        except:
-            res[s] = getOtherData(s, start_date, end_date)
+        # try:
+        #     res[s] = getMoexData(s, start_date, end_date)
+        # except:
+        res[s] = getOtherData(s, start_date, end_date)
+        print(f"{s} First not NA value date: {res[s].index[~res[s].isna()].min()}")
     res[res == 0] = float("nan")
-    return res.fillna(method="ffill").fillna(method="bfill")
+
+    return res.fillna(method="ffill")
