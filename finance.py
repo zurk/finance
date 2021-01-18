@@ -1,3 +1,4 @@
+from dateutil.relativedelta import relativedelta
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -7,11 +8,35 @@ from pandas_datareader.data import DataReader
 from pandas_datareader.moex import MoexReader
 
 
+def get_asset_returns(tickers_data, delta=relativedelta(months=1)):
+    min_date = tickers_data.index.min()
+    cur_date = min_date + delta
+    max_date = tickers_data.index.max()
+
+    accet_return = pd.DataFrame(columns=tickers_data.columns)
+    accet_return.loc[min_date] = 0
+    while cur_date <= max_date:
+        prev_date = cur_date - delta
+        accet_return.loc[cur_date] = (tickers_data.loc[cur_date] - tickers_data.loc[prev_date]) / tickers_data.loc[
+            prev_date]
+        cur_date += delta
+
+    return accet_return.replace([np.inf, -np.inf], np.nan)
+
 def corrfunc(x, y, **kws):
     r, _ = scipy.stats.pearsonr(x, y)
     ax = plt.gca()
     ax.annotate("r = {:.2f}".format(r),
                 xy=(.1, .9), xycoords=ax.transAxes)
+    return ax
+
+
+def plot_price(ticker_price, figsize=(16, 9)):
+    fig, ax = plt.subplots(figsize=figsize)
+    ticker_price.plot(ax=ax)
+    for name, price in ticker_price.iteritems():
+        ax.annotate(xy=(price.index[-1], price.iloc[-1]), xytext=(5, 0), textcoords='offset points', text=name, va='center')
+    ax.set_ylabel('Closing price ($)')
     return ax
 
 
@@ -48,7 +73,8 @@ def plot_mean_avg(ticker_price, windows=(20, 100)):
 
 
 def plot_accumulated_log_return(ticker_price):
-    ticker_price = ticker_price / ticker_price.iloc[0, :]
+    first_valid_index = ticker_price.apply(lambda x: max(x.notna().argmax(), (x != 0).argmax()))
+    ticker_price = ticker_price / ticker_price.apply(lambda x: x[first_valid_index[x.name]])
     ticker_price = np.log(ticker_price)
     ax = ticker_price.plot(figsize=(16, 9))
     ax.set_ylabel('Accumulated log return')
